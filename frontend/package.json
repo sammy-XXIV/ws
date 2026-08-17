@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@opensea/seaport-js": "^4.2.0",
     "@tanstack/react-query": "^5.101.4",
+    "ethers": "^6.17.0",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",

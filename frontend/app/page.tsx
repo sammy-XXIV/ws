@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import { ConnectButton } from "./ConnectButton";
 import { mockNfts } from "@/lib/mockData";
 import type { SweepableNft } from "@/lib/types";
+import { sweepNfts } from "@/lib/sweep";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -14,6 +15,9 @@ export default function Home() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepStatus, setSweepStatus] = useState<string | null>(null);
+  const [sweepTxHash, setSweepTxHash] = useState<string | null>(null);
 
   const sellable = useMemo(
     () => (scanned ?? []).filter((n) => n.bestOfferEth !== null),
@@ -22,6 +26,10 @@ export default function Home() {
   const unsellable = useMemo(
     () => (scanned ?? []).filter((n) => n.bestOfferEth === null),
     [scanned]
+  );
+  const unfulfillable = useMemo(
+    () => sellable.filter((n) => !n.fulfillable),
+    [sellable]
   );
 
   const totalEth = useMemo(() => {
@@ -41,7 +49,27 @@ export default function Home() {
   }
 
   function selectAllSellable() {
-    setSelected(new Set(sellable.map((n) => n.id)));
+    setSelected(new Set(sellable.filter((n) => n.fulfillable).map((n) => n.id)));
+  }
+
+  async function sweep() {
+    if (!address || !scanned) return;
+    const toSweep = scanned.filter((n) => selected.has(n.id) && n.fulfillable);
+    if (toSweep.length === 0) return;
+
+    setSweeping(true);
+    setSweepTxHash(null);
+    setSweepStatus(null);
+    setError(null);
+    try {
+      const hash = await sweepNfts(toSweep, address, (msg) => setSweepStatus(msg));
+      setSweepTxHash(hash);
+      setSweepStatus("Done.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sweep failed");
+    } finally {
+      setSweeping(false);
+    }
   }
 
   async function scan() {
@@ -129,6 +157,7 @@ export default function Home() {
                       <th>Collection</th>
                       <th>Token ID</th>
                       <th>Best offer (ETH)</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -138,21 +167,29 @@ export default function Home() {
                           <input
                             type="checkbox"
                             checked={selected.has(n.id)}
+                            disabled={!n.fulfillable}
                             onChange={() => toggle(n.id)}
                           />
                         </td>
                         <td>{n.collection}</td>
                         <td>{n.tokenId}</td>
                         <td>{n.bestOfferEth}</td>
+                        <td>{!n.fulfillable && "trait-restricted offer — unsupported"}</td>
                       </tr>
                     ))}
                     {sellable.length === 0 && (
                       <tr>
-                        <td colSpan={4}>None found.</td>
+                        <td colSpan={5}>None found.</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
+                {unfulfillable.length > 0 && (
+                  <p>
+                    {unfulfillable.length} offer(s) are trait-restricted and can&apos;t be
+                    swept by this tool yet — excluded above from selection.
+                  </p>
+                )}
               </section>
 
               <section>
@@ -187,16 +224,37 @@ export default function Home() {
                   borderTop: "1px solid #000",
                   paddingTop: "1rem",
                   display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  flexDirection: "column",
+                  gap: "0.5rem",
                 }}
               >
-                <span>
-                  Selected: {selected.size} · Est. proceeds: {totalEth.toFixed(4)} ETH
-                </span>
-                <button disabled={selected.size === 0} title="Not wired up yet">
-                  Sweep Selected
-                </button>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span>
+                    Selected: {selected.size} · Est. proceeds: {totalEth.toFixed(4)} ETH
+                  </span>
+                  <button onClick={sweep} disabled={selected.size === 0 || sweeping}>
+                    {sweeping ? "Sweeping..." : "Sweep Selected"}
+                  </button>
+                </div>
+                {sweepStatus && <p>{sweepStatus}</p>}
+                {sweepTxHash && (
+                  <p>
+                    Tx:{" "}
+                    <a
+                      href={`https://robinhoodchain.blockscout.com/tx/${sweepTxHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {sweepTxHash}
+                    </a>
+                  </p>
+                )}
               </footer>
             </>
           )}

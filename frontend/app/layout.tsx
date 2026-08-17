@@ -22,8 +22,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <div
           style={{
             position: "fixed",
-            left: "1rem",
-            bottom: "0.75rem",
+            right: "1rem",
+            top: "0.75rem",
             fontFamily: "var(--font-bebas-neue)",
             fontSize: "1.1rem",
             letterSpacing: "0.05em",

@@ -36,13 +36,27 @@ app.get("/api/scan/:address", async (req, res) => {
       getBestOffer(nft.collection, nft.identifier)
     );
 
-    const results = nfts.map((nft, i) => ({
-      id: `${nft.contract}:${nft.identifier}`,
-      collection: nft.collection,
-      tokenId: nft.identifier,
-      contract: nft.contract,
-      bestOfferEth: offers[i]?.priceEth ?? null,
-    }));
+    const results = nfts.map((nft, i) => {
+      const offer = offers[i];
+      const fulfillable = offer !== null && offer.criteriaKind !== "trait";
+      return {
+        id: `${nft.contract}:${nft.identifier}`,
+        collection: nft.collection,
+        tokenId: nft.identifier,
+        contract: nft.contract,
+        bestOfferEth: offer?.priceEth ?? null,
+        fulfillable,
+        order: fulfillable
+          ? {
+              orderHash: offer!.orderHash,
+              protocolAddress: offer!.protocolAddress,
+              parameters: offer!.parameters,
+              signature: offer!.signature,
+              criteriaKind: offer!.criteriaKind,
+            }
+          : null,
+      };
+    });
 
     res.json({ nfts: results });
   } catch (err) {
